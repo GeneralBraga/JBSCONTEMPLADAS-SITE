@@ -8,8 +8,7 @@ from fpdf import FPDF
 from datetime import datetime
 import os
 
-# --- CONFIGURAÇÃO INICIAL (ÍCONE E TÍTULO) ---
-# Usa a logo SÓLIDA para o ícone da aba do navegador
+# --- CONFIGURAÇÃO INICIAL ---
 favicon_path = "logo_pdf.png" if os.path.exists("logo_pdf.png") else "🏛️"
 
 st.set_page_config(
@@ -18,12 +17,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CORES DA MARCA ---
+# --- CORES ---
 COLOR_GOLD = "#84754e"
 COLOR_BEIGE = "#ecece4"
 COLOR_BG = "#0e1117"
 
-# --- CSS PERSONALIZADO ---
+# --- CSS ---
 st.markdown(f"""
 <style>
     .stApp {{background-color: {COLOR_BG}; color: {COLOR_BEIGE};}}
@@ -34,7 +33,7 @@ st.markdown(f"""
         border: none; 
         border-radius: 6px; 
         font-weight: bold; 
-        text-transform: uppercase;
+        text-transform: uppercase; 
         padding: 12px;
         letter-spacing: 1px;
     }}
@@ -44,12 +43,11 @@ st.markdown(f"""
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }}
     h1, h2, h3 {{color: {COLOR_GOLD} !important; font-family: 'Helvetica', sans-serif;}}
-    .stTextInput>div>div>input, .stNumberInput>div>div>input {{
+    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div {{
         background-color: #1c1f26; 
         color: white; 
         border: 1px solid {COLOR_GOLD};
     }}
-    /* Ajuste da Tabela e Expander */
     div[data-testid="stDataFrame"], .streamlit-expanderHeader {{
         border: 1px solid {COLOR_GOLD};
         background-color: #1c1f26;
@@ -57,7 +55,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO DO APP (Usa logo transparente) ---
+# --- CABEÇALHO ---
 c1, c2 = st.columns([1, 5])
 with c1:
     if os.path.exists("logo_app.png"):
@@ -70,7 +68,7 @@ with c2:
 
 st.markdown(f"<hr style='border: 1px solid {COLOR_GOLD}; margin-top: 0;'>", unsafe_allow_html=True)
 
-# --- FUNÇÕES LÓGICAS ---
+# --- FUNÇÕES ---
 def limpar_moeda(texto):
     if not texto: return 0.0
     texto = str(texto).lower().strip().replace('\xa0', '').replace('&nbsp;', '')
@@ -88,7 +86,7 @@ def limpar_moeda(texto):
 def extrair_dados_universal(texto_copiado):
     lista_cotas = []
     texto_limpo = "\n".join([line.strip() for line in texto_copiado.split('\n') if line.strip()])
-    blocos = re.split(r'(?i)(?=imóvel|imovel|automóvel|automovel|veículo)', texto_limpo)
+    blocos = re.split(r'(?i)(?=imóvel|imovel|automóvel|automovel|veículo|caminhão|moto)', texto_limpo)
     if len(blocos) < 2: blocos = texto_limpo.split('\n\n')
 
     id_cota = 1
@@ -176,12 +174,20 @@ def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_cust
                     
                     soma_ent = sum(c['Entrada'] for c in combo)
                     if soma_ent > (max_ent * 1.05): continue
+                    
                     soma_cred = sum(c['Crédito'] for c in combo)
                     if soma_cred < min_cred or soma_cred > max_cred: continue
+                    
                     soma_parc = sum(c['Parcela'] for c in combo)
                     if soma_parc > (max_parc * 1.05): continue
-                    soma_custo = sum(c['CustoTotal'] for c in combo)
-                    custo_real = (soma_custo / soma_cred) - 1
+                    
+                    soma_custo_total = sum(c['CustoTotal'] for c in combo) # Soma dos custos totais
+                    soma_saldo = sum(c['Saldo'] for c in combo) # Soma dos saldos
+
+                    # Recalcula o custo total real (Entrada + Saldo)
+                    custo_total_exibicao = soma_ent + soma_saldo
+
+                    custo_real = (custo_total_exibicao / soma_cred) - 1
                     if custo_real > max_custo: continue
                     
                     ids = " + ".join([str(c['ID']) for c in combo])
@@ -194,10 +200,15 @@ def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_cust
                     elif custo_real <= 0.50: status = "✅ OPORTUNIDADE"
                     
                     combinacoes_validas.append({
-                        'Admin': admin, 'Status': status, 'IDs': ids,
-                        'Crédito Total': soma_cred, 'Entrada Total': soma_ent,
+                        'Admin': admin, 
+                        'Status': status, 
+                        'IDs': ids,
+                        'Crédito Total': soma_cred, 
+                        'Entrada Total': soma_ent,
                         'Parcela Total': soma_parc, 
-                        'Custo Real (%)': custo_real * 100, # MULTIPLICADO POR 100
+                        'Saldo Devedor': soma_saldo, # NOVA COLUNA
+                        'Custo Total': custo_total_exibicao, # NOVA COLUNA
+                        'Custo Real (%)': custo_real * 100, 
                         'Detalhes': detalhes
                     })
                     
@@ -207,18 +218,13 @@ def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_cust
     progress_bar.empty()
     return pd.DataFrame(combinacoes_validas)
 
-# --- PDF CUSTOMIZADO (Usa logo SÓLIDA) ---
+# --- PDF ---
 class PDF(FPDF):
     def header(self):
-        # Fundo Dourado
         self.set_fill_color(132, 117, 78)
         self.rect(0, 0, 297, 22, 'F')
-        
-        # Logo Sólida (Ajuste fino de posição x=5, y=3)
         if os.path.exists("logo_pdf.png"):
             self.image('logo_pdf.png', 5, 3, 35)
-
-        # Título Centralizado
         self.set_font('Arial', 'B', 16)
         self.set_text_color(255, 255, 255)
         self.set_xy(45, 6) 
@@ -231,40 +237,37 @@ def limpar_emojis(texto):
 def gerar_pdf_final(df):
     pdf = PDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_font("Arial", size=9)
-    
-    # Cabeçalho da Tabela
-    pdf.set_fill_color(236, 236, 228) # Bege
+    pdf.set_font("Arial", size=8) # Fonte ajustada para caber mais colunas
+    pdf.set_fill_color(236, 236, 228)
     pdf.set_text_color(0)
-    pdf.set_font("Arial", 'B', 9)
+    pdf.set_font("Arial", 'B', 8)
     
-    headers = ["Admin", "Status", "Credito", "Entrada", "Parcela", "Custo", "Detalhes"]
-    w = [30, 35, 35, 35, 30, 20, 90]
+    # Cabeçalho Atualizado
+    headers = ["Admin", "Status", "Credito", "Entrada", "Parcela", "Saldo", "Custo Tot", "Taxa%", "Detalhes"]
+    w = [25, 30, 30, 30, 25, 25, 25, 15, 70]
     
     for i, h in enumerate(headers):
         pdf.cell(w[i], 10, h, 1, 0, 'C', True)
     pdf.ln()
     
-    # Linhas
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Arial", size=7)
     for index, row in df.iterrows():
         status_clean = limpar_emojis(row['Status'])
-        
         pdf.cell(w[0], 8, limpar_emojis(str(row['Admin'])), 1, 0, 'C')
         pdf.cell(w[1], 8, status_clean, 1, 0, 'C')
-        pdf.cell(w[2], 8, f"R$ {row['Crédito Total']:,.2f}", 1, 0, 'R')
-        pdf.cell(w[3], 8, f"R$ {row['Entrada Total']:,.2f}", 1, 0, 'R')
-        pdf.cell(w[4], 8, f"R$ {row['Parcela Total']:,.2f}", 1, 0, 'R')
-        pdf.cell(w[5], 8, f"{row['Custo Real (%)']:.2f}%", 1, 0, 'C')
+        pdf.cell(w[2], 8, f"R$ {row['Crédito Total']:,.0f}", 1, 0, 'R')
+        pdf.cell(w[3], 8, f"R$ {row['Entrada Total']:,.0f}", 1, 0, 'R')
+        pdf.cell(w[4], 8, f"R$ {row['Parcela Total']:,.0f}", 1, 0, 'R')
+        pdf.cell(w[5], 8, f"R$ {row['Saldo Devedor']:,.0f}", 1, 0, 'R') # Novo
+        pdf.cell(w[6], 8, f"R$ {row['Custo Total']:,.0f}", 1, 0, 'R') # Novo
+        pdf.cell(w[7], 8, f"{row['Custo Real (%)']:.2f}%", 1, 0, 'C')
         
         detalhe = limpar_emojis(row['Detalhes'])
-        pdf.cell(w[6], 8, detalhe[:55], 1, 1, 'L')
-        
+        pdf.cell(w[8], 8, detalhe[:50], 1, 1, 'L')
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- INTERFACE PRINCIPAL ---
 
-# Session State
 if 'df_resultado' not in st.session_state:
     st.session_state.df_resultado = None
 
@@ -273,10 +276,10 @@ with st.expander("📋 DADOS DO SITE (Colar aqui)", expanded=True):
 
 st.subheader("Filtros JBS")
 c1, c2 = st.columns(2)
-min_c = c1.number_input("Crédito Mín (R$)", 640000.0, step=10000.0, format="%.2f")
-max_c = c1.number_input("Crédito Máx (R$)", 710000.0, step=10000.0, format="%.2f")
-max_e = c2.number_input("Entrada Máx (R$)", 280000.0, step=5000.0, format="%.2f")
-max_p = c2.number_input("Parcela Máx (R$)", 4500.0, step=100.0, format="%.2f")
+min_c = c1.number_input("Crédito Mín (R$)", 0.0, step=1000.0, value=600000.0, format="%.2f")
+max_c = c1.number_input("Crédito Máx (R$)", 0.0, step=1000.0, value=710000.0, format="%.2f")
+max_e = c2.number_input("Entrada Máx (R$)", 0.0, step=1000.0, value=280000.0, format="%.2f")
+max_p = c2.number_input("Parcela Máx (R$)", 0.0, step=100.0, value=4500.0, format="%.2f")
 max_k = st.slider("Custo Máx (%)", 0.0, 1.0, 0.55, 0.01)
 
 if st.button("🔍 LOCALIZAR OPORTUNIDADES"):
@@ -289,51 +292,48 @@ if st.button("🔍 LOCALIZAR OPORTUNIDADES"):
     else:
         st.error("Cole os dados primeiro.")
 
-# EXIBIÇÃO DE RESULTADOS
 if st.session_state.df_resultado is not None:
     df_show = st.session_state.df_resultado
-    
     if not df_show.empty:
         df_show = df_show.sort_values(by='Custo Real (%)')
         st.success(f"{len(df_show)} Oportunidades Encontradas!")
         
+        # Tabela com Novas Colunas
         st.dataframe(
             df_show,
             column_config={
                 "Crédito Total": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Entrada Total": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Parcela Total": st.column_config.NumberColumn(format="R$ %.2f"),
+                "Saldo Devedor": st.column_config.NumberColumn(format="R$ %.2f"), # Visível
+                "Custo Total": st.column_config.NumberColumn(format="R$ %.2f"),   # Visível
                 "Custo Real (%)": st.column_config.NumberColumn(format="%.2f %%"),
             }, hide_index=True
         )
         
         c_pdf, c_xls = st.columns(2)
         
-        # PDF
         try:
             pdf_bytes = gerar_pdf_final(df_show)
-            c_pdf.download_button("📄 Baixar PDF (Relatório)", pdf_bytes, "JBS_Sniper_Relatorio.pdf", "application/pdf")
+            c_pdf.download_button("📄 Baixar PDF (Relatório)", pdf_bytes, "JBS_Relatorio.pdf", "application/pdf")
         except Exception as e:
             c_pdf.error(f"Erro no PDF: {e}")
 
-        # EXCEL
         buf = BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-            df_excel = df_show.copy()
-            df_excel['Custo Real (%)'] = df_excel['Custo Real (%)'] / 100
-            
-            df_excel.to_excel(writer, index=False, sheet_name='JBS')
+            df_ex = df_show.copy()
+            df_ex['Custo Real (%)'] = df_ex['Custo Real (%)'] / 100
+            df_ex.to_excel(writer, index=False, sheet_name='JBS')
             wb = writer.book
             ws = writer.sheets['JBS']
             
             fmt_money = wb.add_format({'num_format': 'R$ #,##0.00'})
             fmt_perc = wb.add_format({'num_format': '0.00%'})
             
-            ws.set_column('C:E', 18, fmt_money)
-            ws.set_column('F:F', 12, fmt_perc)
-            ws.set_column('G:G', 50)
+            ws.set_column('D:H', 18, fmt_money) # Crédito, Entrada, Parcela, Saldo, Custo Total
+            ws.set_column('I:I', 12, fmt_perc)  # Taxa
+            ws.set_column('J:J', 50)            # Detalhes
             
-        c_xls.download_button("📊 Baixar Excel (Cálculo)", buf.getvalue(), "JBS_Sniper_Calculo.xlsx")
-        
+        c_xls.download_button("📊 Baixar Excel", buf.getvalue(), "JBS_Calculo.xlsx")
     else:
         st.warning("Nenhuma oportunidade com estes filtros.")
