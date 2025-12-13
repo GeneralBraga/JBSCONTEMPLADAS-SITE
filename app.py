@@ -42,7 +42,7 @@ with c1:
     st.markdown(f"<h1 style='color:{COLOR_GOLD}; font-size: 50px;'>JBS</h1>", unsafe_allow_html=True)
 with c2:
     st.markdown(f"<h1 style='margin-top: 15px;'>SISTEMA SNIPER V32</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='color: {COLOR_TEXT};'>Motor V32 Sanguesuga Original</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: {COLOR_TEXT};'>Motor V32 Original - Modo Transparente</h3>", unsafe_allow_html=True)
 
 st.markdown(f"<hr style='border: 1px solid {COLOR_GOLD}; margin-top: 0;'>", unsafe_allow_html=True)
 
@@ -51,7 +51,6 @@ def limpar_moeda(texto):
     if not texto: return 0.0
     texto = str(texto).lower().replace('r$', '').replace('.', '').replace(',', '.').strip()
     try:
-        # Pega qualquer sequencia de numeros
         nums = re.findall(r"[\d\.]+", texto)
         if nums: return float(nums[0])
         return 0.0
@@ -61,14 +60,11 @@ def limpar_moeda(texto):
 def extrair_dados_universal(texto_bruto):
     lista_cotas = []
     
-    # Normalização
+    # 1. Normalização
     texto = "\n".join([line.strip() for line in texto_bruto.splitlines() if line.strip()])
 
-    # SPLIT AGRESSIVO DA V32 (SEPARAR POR 'Crédito')
-    # Adicionei fallback para 'Valor' ou 'Cód' caso o texto mude um pouco
-    blocos = re.split(r'(?i)(?=Crédito|Valor|Cód|Admin)', texto)
-    
-    # Se não quebrar, tenta quebra de linha dupla
+    # 2. SPLIT AGRESSIVO DA V32
+    blocos = re.split(r'(?i)(?=Crédito|Valor|Cód)', texto)
     if len(blocos) < 2: blocos = texto.split('\n\n')
 
     id_cota = 1
@@ -76,27 +72,25 @@ def extrair_dados_universal(texto_bruto):
         if "R$" not in bloco and "r$" not in bloco.lower(): continue
         bloco_lower = bloco.lower()
 
-        # 1. Crédito (Regex da V32)
+        # 1. Crédito
         match_cred = re.search(r'(?:crédito|valor).*?r\$\s?([\d\.,]+)', bloco_lower)
         if match_cred: 
             credito = limpar_moeda(match_cred.group(1))
         else:
-            # Fallback: maior valor numérico
             valores = re.findall(r'r\$\s?([\d\.,]+)', bloco_lower)
             vals = sorted([limpar_moeda(v) for v in valores], reverse=True)
             credito = vals[0] if vals else 0
 
-        # 2. Entrada (Regex da V32)
+        # 2. Entrada
         match_ent = re.search(r'(?:entrada|quero|ágio).*?r\$\s?([\d\.,]+)', bloco_lower)
         if match_ent: 
             entrada = limpar_moeda(match_ent.group(1))
         else:
-            # Fallback: segundo maior valor
             valores = re.findall(r'r\$\s?([\d\.,]+)', bloco_lower)
             vals = sorted([limpar_moeda(v) for v in valores], reverse=True)
             entrada = vals[1] if len(vals) > 1 else 0
 
-        # 3. Prazo e Parcela (Regex da V32 - 50x R$ 1000)
+        # 3. Prazo e Parcela
         match_prz = re.search(r'(\d+)\s*[xX]\s*r?\$\s?([\d\.,]+)', bloco_lower)
         prazo = 0
         parcela = 0
@@ -122,12 +116,13 @@ def extrair_dados_universal(texto_bruto):
         elif "automóvel" in bloco_lower: tipo_bem = "Automóvel"
         elif "caminhão" in bloco_lower: tipo_bem = "Pesados"
 
-        # CÁLCULOS V32
+        # CÁLCULOS
         saldo_devedor = prazo * parcela
-        if saldo_devedor == 0 and credito > 0: saldo_devedor = credito * 1.3 # Estimativa de segurança
+        if saldo_devedor == 0 and credito > 0: saldo_devedor = credito * 1.3
         custo_total = entrada + saldo_devedor
 
-        if credito > 3000: # Filtro mínimo para evitar lixo
+        # Filtro básico de lixo (crédito > 3k)
+        if credito > 3000:
             lista_cotas.append({
                 'ID': id_cota, 'Admin': admin_encontrada, 'Tipo': tipo_bem,
                 'Crédito': credito, 'Entrada': entrada,
@@ -138,7 +133,7 @@ def extrair_dados_universal(texto_bruto):
             
     return lista_cotas
 
-# --- COMBINAÇÃO (MANTENDO A LÓGICA SNIPER) ---
+# --- COMBINAÇÃO ---
 def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_custo, tipo_filtro):
     combinacoes_validas = []
     cotas_por_admin = {}
@@ -267,19 +262,31 @@ with st.expander("📋 DADOS DO SITE (Colar aqui)", expanded=True):
 st.subheader("Filtros JBS")
 tipo_bem = st.selectbox("Tipo de Bem", ["Todos", "Imóvel", "Automóvel", "Pesados"])
 
+# FILTROS AJUSTADOS PARA NÃO BLOQUEAR RESULTADOS PEQUENOS
 c1, c2 = st.columns(2)
-min_c = c1.number_input("Crédito Mín (R$)", 0.0, step=1000.0, value=50000.0, format="%.2f")
+min_c = c1.number_input("Crédito Mín (R$)", 0.0, step=1000.0, value=10000.0, format="%.2f") # BAIXEI PARA 10k
 max_c = c1.number_input("Crédito Máx (R$)", 0.0, step=1000.0, value=1000000.0, format="%.2f")
 max_e = c2.number_input("Entrada Máx (R$)", 0.0, step=1000.0, value=300000.0, format="%.2f")
 max_p = c2.number_input("Parcela Máx (R$)", 0.0, step=100.0, value=10000.0, format="%.2f")
-max_k = st.slider("Custo Máx (%)", 0.0, 1.0, 0.60, 0.01)
+max_k = st.slider("Custo Máx (%)", 0.0, 1.0, 0.65, 0.01)
 
 if st.button("🔍 LOCALIZAR OPORTUNIDADES"):
     if texto_site:
         cotas = extrair_dados_universal(texto_site)
+        
+        # --- NOVO: DEBUG DE LEITURA (PARA PROVAR QUE LEU) ---
+        with st.expander(f"🔍 VERIFICAR LEITURA BRUTA ({len(cotas)} Cotas Lidas)", expanded=False):
+            if cotas:
+                st.dataframe(pd.DataFrame(cotas)[['ID', 'Admin', 'Crédito', 'Entrada', 'Parcela']])
+            else:
+                st.write("Nenhuma cota lida pelo Regex.")
+
         if cotas:
-            st.success(f"{len(cotas)} cotas brutas lidas! Processando combinações...")
-            st.session_state.df_resultado = processar_combinacoes(cotas, min_c, max_c, max_e, max_p, max_k, tipo_bem)
+            # Tenta combinar
+            df_res = processar_combinacoes(cotas, min_c, max_c, max_e, max_p, max_k, tipo_bem)
+            st.session_state.df_resultado = df_res
+            if df_res.empty:
+                st.warning(f"O robô leu {len(cotas)} cotas, mas a soma delas não atingiu o Mínimo de Crédito ({min_c:,.2f}) ou estourou a Entrada/Custo.")
         else:
             st.error("Nenhuma cota identificada. Tente colar novamente.")
     else:
@@ -323,5 +330,3 @@ if st.session_state.df_resultado is not None:
             ws.set_column('G:G', 12, fmt_perc)
             ws.set_column('K:K', 12, fmt_perc)
         c_xls.download_button("📊 Baixar Excel", buf.getvalue(), "Calculo.xlsx")
-    else:
-        st.warning("Nenhuma combinação encontrada com esses filtros. Tente aumentar o Custo Máx ou Entrada Máx.")
