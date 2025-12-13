@@ -9,47 +9,29 @@ import os
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(
-    page_title="001 JBS SNIPER DARK",
+    page_title="001 JBS SNIPER DARK V32",
     page_icon="🎯",
     layout="wide"
 )
 
-# --- CORES (IDENTIDADE VISUAL DARK/GOLD) ---
+# --- CORES (DARK/GOLD) ---
 COLOR_BG = "#0e1117"
-COLOR_SIDEBAR = "#262730"
-COLOR_GOLD = "#84754e"     # Dourado JBS
-COLOR_TEXT = "#ecece4"     # Bege Claro
+COLOR_GOLD = "#84754e"
+COLOR_TEXT = "#ecece4"
 
-# --- CSS PERSONALIZADO ---
+# --- CSS ---
 st.markdown(f"""
 <style>
     .stApp {{background-color: {COLOR_BG}; color: {COLOR_TEXT};}}
     .stButton>button {{
-        width: 100%; 
-        background-color: {COLOR_GOLD}; 
-        color: white; 
-        border: none; 
-        border-radius: 6px; 
-        font-weight: bold; 
-        text-transform: uppercase;
-        padding: 12px;
-        letter-spacing: 1px;
+        width: 100%; background-color: {COLOR_GOLD}; color: white; border: none; 
+        border-radius: 6px; font-weight: bold; text-transform: uppercase; padding: 12px;
     }}
-    .stButton>button:hover {{
-        background-color: #6b5e3d; 
-        color: {COLOR_TEXT};
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }}
+    .stButton>button:hover {{background-color: #6b5e3d; color: {COLOR_TEXT};}}
     .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div {{
-        background-color: #1c1f26; 
-        color: white; 
-        border: 1px solid {COLOR_GOLD};
+        background-color: #1c1f26; color: white; border: 1px solid {COLOR_GOLD};
     }}
-    div[data-testid="stDataFrame"], .streamlit-expanderHeader {{
-        border: 1px solid {COLOR_GOLD};
-        background-color: #1c1f26;
-        color: {COLOR_GOLD};
-    }}
+    div[data-testid="stDataFrame"] {{border: 1px solid {COLOR_GOLD}; background-color: #1c1f26;}}
     h1, h2, h3 {{color: {COLOR_GOLD} !important; font-family: 'Helvetica', sans-serif;}}
 </style>
 """, unsafe_allow_html=True)
@@ -59,64 +41,62 @@ c1, c2 = st.columns([1, 5])
 with c1:
     st.markdown(f"<h1 style='color:{COLOR_GOLD}; font-size: 50px;'>JBS</h1>", unsafe_allow_html=True)
 with c2:
-    st.markdown(f"<h1 style='margin-top: 15px; margin-bottom: 0px;'>SISTEMA SNIPER V32</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='margin-top: 0px; color: {COLOR_TEXT} !important;'>Modo Sanguesuga Dark - Motor Trator V32</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='margin-top: 15px;'>SISTEMA SNIPER V32</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: {COLOR_TEXT};'>Motor V32 Sanguesuga Original</h3>", unsafe_allow_html=True)
 
 st.markdown(f"<hr style='border: 1px solid {COLOR_GOLD}; margin-top: 0;'>", unsafe_allow_html=True)
 
-# --- FUNÇÕES ---
+# --- FUNÇÃO DE LIMPEZA (IGUAL V32) ---
 def limpar_moeda(texto):
     if not texto: return 0.0
     texto = str(texto).lower().replace('r$', '').replace('.', '').replace(',', '.').strip()
     try:
-        # Busca o primeiro número válido na string
+        # Pega qualquer sequencia de numeros
         nums = re.findall(r"[\d\.]+", texto)
         if nums: return float(nums[0])
         return 0.0
-    except:
-        return 0.0
+    except: return 0.0
 
+# --- ENGINE DE EXTRAÇÃO (CÓPIA FIEL DA V32) ---
 def extrair_dados_universal(texto_bruto):
-    # LÓGICA V32 (PIFFER SANGUESUGA) - A MAIS AGRESSIVA
     lista_cotas = []
     
-    # 1. Normaliza
+    # Normalização
     texto = "\n".join([line.strip() for line in texto_bruto.splitlines() if line.strip()])
+
+    # SPLIT AGRESSIVO DA V32 (SEPARAR POR 'Crédito')
+    # Adicionei fallback para 'Valor' ou 'Cód' caso o texto mude um pouco
+    blocos = re.split(r'(?i)(?=Crédito|Valor|Cód|Admin)', texto)
     
-    # 2. Split inteligente (Keyword Strategy)
-    # Tenta quebrar onde aparece "Crédito" ou padrões de admin
-    blocos = re.split(r'(?i)(?=Crédito|Admin|Cód)', texto)
-    if len(blocos) < 2: blocos = texto.split('\n\n') # Fallback
+    # Se não quebrar, tenta quebra de linha dupla
+    if len(blocos) < 2: blocos = texto.split('\n\n')
 
     id_cota = 1
     for bloco in blocos:
         if "R$" not in bloco and "r$" not in bloco.lower(): continue
-        
         bloco_lower = bloco.lower()
 
-        # --- EXTRAÇÃO DE VALORES (REGEX FLEXÍVEL) ---
-        
-        # Crédito
-        match_cred = re.search(r'(?:crédito|valor|bem).*?r\$\s?([\d\.,]+)', bloco_lower)
+        # 1. Crédito (Regex da V32)
+        match_cred = re.search(r'(?:crédito|valor).*?r\$\s?([\d\.,]+)', bloco_lower)
         if match_cred: 
             credito = limpar_moeda(match_cred.group(1))
         else:
-            # Tenta achar o maior valor se não tiver a palavra crédito
+            # Fallback: maior valor numérico
             valores = re.findall(r'r\$\s?([\d\.,]+)', bloco_lower)
             vals = sorted([limpar_moeda(v) for v in valores], reverse=True)
             credito = vals[0] if vals else 0
 
-        # Entrada
+        # 2. Entrada (Regex da V32)
         match_ent = re.search(r'(?:entrada|quero|ágio).*?r\$\s?([\d\.,]+)', bloco_lower)
         if match_ent: 
             entrada = limpar_moeda(match_ent.group(1))
         else:
-            # Se não achou explícito, tenta pegar o segundo maior valor (arriscado mas funciona pra Piffer)
+            # Fallback: segundo maior valor
             valores = re.findall(r'r\$\s?([\d\.,]+)', bloco_lower)
             vals = sorted([limpar_moeda(v) for v in valores], reverse=True)
             entrada = vals[1] if len(vals) > 1 else 0
 
-        # Parcela e Prazo (Motor V32)
+        # 3. Prazo e Parcela (Regex da V32 - 50x R$ 1000)
         match_prz = re.search(r'(\d+)\s*[xX]\s*r?\$\s?([\d\.,]+)', bloco_lower)
         prazo = 0
         parcela = 0
@@ -125,36 +105,29 @@ def extrair_dados_universal(texto_bruto):
             prazo = int(match_prz.group(1))
             parcela = limpar_moeda(match_prz.group(2))
         else:
-            # Tenta isolados
             match_parc = re.search(r'(?:parcela|mensal).*?r\$\s?([\d\.,]+)', bloco_lower)
             if match_parc: parcela = limpar_moeda(match_parc.group(1))
-            
-            match_prazo = re.search(r'(?:prazo|meses).*?(\d+)', bloco_lower)
-            if match_prazo: prazo = int(match_prazo.group(1))
 
-        # Admin
-        admins = ['BRADESCO', 'SANTANDER', 'ITAÚ', 'ITAU', 'PORTO', 'CAIXA', 'BANCO DO BRASIL', 'BB', 'RODOBENS', 'EMBRACON', 'ANCORA', 'MYCON', 'SICREDI', 'SICOOB', 'MAPFRE', 'HS', 'YAMAHA', 'ZEMA', 'BANCORBRÁS', 'SERVOPA', 'UNIFISA']
+        # 4. Admin
+        admins = ['BRADESCO', 'SANTANDER', 'ITAÚ', 'ITAU', 'PORTO', 'CAIXA', 'BANCO DO BRASIL', 'BB', 'RODOBENS', 'EMBRACON', 'ANCORA', 'MYCON', 'SICREDI', 'SICOOB', 'MAPFRE', 'HS', 'YAMAHA', 'ZEMA', 'BANCORBRÁS', 'SERVOPA']
         admin_encontrada = "OUTROS"
         for adm in admins:
             if adm.lower() in bloco_lower:
                 admin_encontrada = adm.upper()
                 break
-        
-        if admin_encontrada == "OUTROS" and parcela == 0: continue # Lixo
 
-        # Tipo
+        # 5. Tipo
         tipo_bem = "Geral"
         if "imóvel" in bloco_lower or "imovel" in bloco_lower: tipo_bem = "Imóvel"
-        elif "automóvel" in bloco_lower or "veículo" in bloco_lower: tipo_bem = "Automóvel"
+        elif "automóvel" in bloco_lower: tipo_bem = "Automóvel"
         elif "caminhão" in bloco_lower: tipo_bem = "Pesados"
 
-        # --- CÁLCULOS ---
+        # CÁLCULOS V32
         saldo_devedor = prazo * parcela
-        if saldo_devedor == 0 and credito > 0: saldo_devedor = credito * 1.3 # Estimativa se não achar parcela
-            
+        if saldo_devedor == 0 and credito > 0: saldo_devedor = credito * 1.3 # Estimativa de segurança
         custo_total = entrada + saldo_devedor
-        
-        if credito > 5000:
+
+        if credito > 3000: # Filtro mínimo para evitar lixo
             lista_cotas.append({
                 'ID': id_cota, 'Admin': admin_encontrada, 'Tipo': tipo_bem,
                 'Crédito': credito, 'Entrada': entrada,
@@ -165,6 +138,7 @@ def extrair_dados_universal(texto_bruto):
             
     return lista_cotas
 
+# --- COMBINAÇÃO (MANTENDO A LÓGICA SNIPER) ---
 def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_custo, tipo_filtro):
     combinacoes_validas = []
     cotas_por_admin = {}
@@ -176,21 +150,20 @@ def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_cust
         cotas_por_admin[adm].append(cota)
     
     progress_bar = st.progress(0)
-    total_admins = len(cotas_por_admin)
+    total = len(cotas_por_admin)
     current = 0
 
-    if total_admins == 0: return pd.DataFrame()
+    if total == 0: return pd.DataFrame()
 
     for admin, grupo in cotas_por_admin.items():
         if admin == "OUTROS": continue
         current += 1
-        progress_bar.progress(int((current / total_admins) * 100))
+        progress_bar.progress(int((current / total) * 100))
         grupo.sort(key=lambda x: x['EntradaPct'])
         
         count = 0
         max_ops = 500000 
         
-        # Combinações de 1 até 6
         for r in range(1, 7):
             iterator = itertools.combinations(grupo, r)
             while True:
@@ -214,11 +187,10 @@ def processar_combinacoes(cotas, min_cred, max_cred, max_ent, max_parc, max_cust
                     custo_real = (soma_custo / soma_cred) - 1
                     if custo_real > max_custo: continue
                     
-                    # Colunas Novas
                     perc_entrada = soma_ent / soma_cred if soma_cred > 0 else 0
                     
                     ids = " + ".join([str(c['ID']) for c in combo])
-                    detalhes = " || ".join([f"[ID {c['ID']}] {c['Tipo']} Cr: {c['Crédito']:,.0f}" for c in combo])
+                    detalhes = " || ".join([f"[ID {c['ID']}] Cr: {c['Crédito']:,.0f}" for c in combo])
                     tipo_final = combo[0]['Tipo']
                     
                     status = "⚠️ PADRÃO"
@@ -251,7 +223,7 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 16)
         self.set_text_color(255, 255, 255)
         self.set_xy(10, 6) 
-        self.cell(0, 10, 'JBS SNIPER - RELATÓRIO DE OPORTUNIDADES', 0, 1, 'C')
+        self.cell(0, 10, 'JBS SNIPER - RELATÓRIO', 0, 1, 'C')
         self.ln(8)
 
 def limpar_emojis(texto):
@@ -274,9 +246,9 @@ def gerar_pdf_final(df):
     pdf.set_font("Arial", size=7)
     for index, row in df.iterrows():
         try:
-            status_clean = limpar_emojis(row['Status'])
+            status = limpar_emojis(row['Status'])
             pdf.cell(w[0], 8, str(row['Admin'])[:15], 1, 0, 'C')
-            pdf.cell(w[1], 8, status_clean, 1, 0, 'C')
+            pdf.cell(w[1], 8, status, 1, 0, 'C')
             pdf.cell(w[2], 8, f"{row['Crédito Total']:,.2f}", 1, 0, 'R')
             pdf.cell(w[3], 8, f"{row['Entrada Total']:,.2f}", 1, 0, 'R')
             pdf.cell(w[4], 8, f"{row['% Entrada']*100:.1f}%", 1, 0, 'C')
@@ -290,25 +262,26 @@ def gerar_pdf_final(df):
 if 'df_resultado' not in st.session_state: st.session_state.df_resultado = None
 
 with st.expander("📋 DADOS DO SITE (Colar aqui)", expanded=True):
-    texto_site = st.text_area("", height=100, key="input_texto", placeholder="Cole o texto aqui...")
+    texto_site = st.text_area("", height=150, key="input_texto", placeholder="Cole aqui o texto...")
 
 st.subheader("Filtros JBS")
 tipo_bem = st.selectbox("Tipo de Bem", ["Todos", "Imóvel", "Automóvel", "Pesados"])
 
 c1, c2 = st.columns(2)
-min_c = c1.number_input("Crédito Mín (R$)", 0.0, step=1000.0, value=60000.0, format="%.2f")
-max_c = c1.number_input("Crédito Máx (R$)", 0.0, step=1000.0, value=710000.0, format="%.2f")
-max_e = c2.number_input("Entrada Máx (R$)", 0.0, step=1000.0, value=200000.0, format="%.2f")
-max_p = c2.number_input("Parcela Máx (R$)", 0.0, step=100.0, value=5000.0, format="%.2f")
-max_k = st.slider("Custo Máx (%)", 0.0, 1.0, 0.57, 0.01)
+min_c = c1.number_input("Crédito Mín (R$)", 0.0, step=1000.0, value=50000.0, format="%.2f")
+max_c = c1.number_input("Crédito Máx (R$)", 0.0, step=1000.0, value=1000000.0, format="%.2f")
+max_e = c2.number_input("Entrada Máx (R$)", 0.0, step=1000.0, value=300000.0, format="%.2f")
+max_p = c2.number_input("Parcela Máx (R$)", 0.0, step=100.0, value=10000.0, format="%.2f")
+max_k = st.slider("Custo Máx (%)", 0.0, 1.0, 0.60, 0.01)
 
 if st.button("🔍 LOCALIZAR OPORTUNIDADES"):
     if texto_site:
         cotas = extrair_dados_universal(texto_site)
         if cotas:
+            st.success(f"{len(cotas)} cotas brutas lidas! Processando combinações...")
             st.session_state.df_resultado = processar_combinacoes(cotas, min_c, max_c, max_e, max_p, max_k, tipo_bem)
         else:
-            st.error("Nenhuma cota identificada. O motor V32 não encontrou padrões válidos.")
+            st.error("Nenhuma cota identificada. Tente colar novamente.")
     else:
         st.error("Cole os dados.")
 
@@ -316,7 +289,7 @@ if st.session_state.df_resultado is not None:
     df_show = st.session_state.df_resultado
     if not df_show.empty:
         df_show = df_show.sort_values(by='Custo Real (%)')
-        st.success(f"{len(df_show)} Oportunidades Encontradas!")
+        st.success(f"{len(df_show)} Combinações Encontradas!")
         
         st.dataframe(
             df_show,
@@ -334,28 +307,21 @@ if st.session_state.df_resultado is not None:
         c_pdf, c_xls = st.columns(2)
         try:
             pdf_bytes = gerar_pdf_final(df_show)
-            c_pdf.download_button("📄 Baixar PDF", pdf_bytes, "JBS_Relatorio.pdf", "application/pdf")
-        except: c_pdf.error("Erro PDF")
+            c_pdf.download_button("📄 Baixar PDF", pdf_bytes, "Relatorio.pdf", "application/pdf")
+        except: pass
 
         buf = BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
             df_ex = df_show.copy()
             df_ex['Custo Real (%)'] = df_ex['Custo Real (%)'] / 100
-            df_ex.to_excel(writer, index=False, sheet_name='JBS_SNIPER')
+            df_ex.to_excel(writer, index=False, sheet_name='JBS')
             wb = writer.book
-            ws = writer.sheets['JBS_SNIPER']
+            ws = writer.sheets['JBS']
             fmt_money = wb.add_format({'num_format': 'R$ #,##0.00'})
             fmt_perc = wb.add_format({'num_format': '0.00%'})
-            header_fmt = wb.add_format({'bold': True, 'fg_color': '#84754e', 'font_color': 'white', 'border': 1})
-            
-            for col_num, value in enumerate(df_ex.columns.values):
-                ws.write(0, col_num, value, header_fmt)
-
-            ws.set_column('A:B', 15)
             ws.set_column('E:M', 18, fmt_money)
             ws.set_column('G:G', 12, fmt_perc)
             ws.set_column('K:K', 12, fmt_perc)
-
-        c_xls.download_button("📊 Baixar Excel", buf.getvalue(), "JBS_Calculo.xlsx")
+        c_xls.download_button("📊 Baixar Excel", buf.getvalue(), "Calculo.xlsx")
     else:
-        st.warning("Nenhuma oportunidade encontrada com estes filtros.")
+        st.warning("Nenhuma combinação encontrada com esses filtros. Tente aumentar o Custo Máx ou Entrada Máx.")
