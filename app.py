@@ -9,8 +9,8 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="001 JBS CONTEMPLADAS SNIPER", layout="wide", page_icon="🎯")
 
-# --- ESTILOS CSS (Igual ao Print) ---
-COLOR_HEADER = "#1f4e3d" # Verde Escuro Excel
+# --- ESTILOS CSS (Padrão Piffer/Verde) ---
+COLOR_HEADER = "#1f4e3d" # Verde Escuro
 COLOR_TEXT = "#ffffff"
 
 st.markdown(f"""
@@ -30,10 +30,10 @@ st.markdown(f"""
 
 # --- CABEÇALHO ---
 st.markdown(f"# 🎯 001 JBS CONTEMPLADAS SNIPER")
-st.markdown("**Modo Sanguesuga Completo**: Copie (Ctrl+A) o site da Piffer e cole abaixo. O sistema recalcula tudo.")
+st.markdown("**Modo Sanguesuga Completo**: Copie (Ctrl+A) o site e cole abaixo. O sistema recalcula tudo.")
 st.divider()
 
-# --- FUNÇÕES DE LIMPEZA E CÁLCULO ---
+# --- FUNÇÕES ---
 def limpar_moeda(texto):
     if not texto: return 0.0
     texto = str(texto).lower().replace('r$', '').replace('.', '').replace(',', '.').strip()
@@ -57,15 +57,17 @@ def extrair_piffer_sanguesuga(texto_bruto):
         if "R$" not in bloco: continue
         bloco_lower = bloco.lower()
 
-        # --- EXTRAÇÃO DE VALORES ---
+        # 1. CRÉDITO
         match_cred = re.search(r'(?:crédito|valor).*?r\$\s?([\d\.,]+)', bloco_lower)
         if not match_cred: continue
         credito = limpar_moeda(match_cred.group(1))
 
+        # 2. ENTRADA
         match_ent = re.search(r'(?:entrada|quero).*?r\$\s?([\d\.,]+)', bloco_lower)
         if not match_ent: continue 
         entrada = limpar_moeda(match_ent.group(1))
 
+        # 3. PRAZO E PARCELA
         match_prz = re.search(r'(\d+)\s*[xX]\s*r?\$\s?([\d\.,]+)', bloco_lower)
         prazo = 0
         parcela = 0
@@ -82,6 +84,7 @@ def extrair_piffer_sanguesuga(texto_bruto):
             else:
                 continue
 
+        # 4. ADMIN E TIPO
         admins = ['BRADESCO', 'SANTANDER', 'ITAÚ', 'ITAU', 'PORTO', 'CAIXA', 'BANCO DO BRASIL', 'BB', 'RODOBENS', 'EMBRACON', 'ANCORA', 'MYCON', 'SICREDI', 'SICOOB', 'MAPFRE', 'HS', 'YAMAHA', 'ZEMA', 'BANCORBRÁS', 'SERVOPA', 'UNIFISA']
         admin_encontrada = "DIVERSOS"
         for adm in admins:
@@ -94,18 +97,13 @@ def extrair_piffer_sanguesuga(texto_bruto):
         elif "automóvel" in bloco_lower or "veículo" in bloco_lower or "carro" in bloco_lower: tipo_bem = "Automóvel"
         elif "caminhão" in bloco_lower or "pesado" in bloco_lower: tipo_bem = "Pesados"
 
-        # --- CÁLCULOS SOLICITADOS ---
-        
-        # 1. Saldo Devedor
+        # --- CÁLCULOS MATEMÁTICOS ---
         saldo_devedor_calc = prazo * parcela
-
-        # 2. Custo Total (SOLICITADO: Entrada + Saldo Devedor)
-        custo_total_calc = saldo_devedor_calc + entrada
-
-        # 3. % Entrada (SOLICITADO: Entrada / Crédito)
+        custo_total_calc = saldo_devedor_calc + entrada # COLUNA NOVA PEDIDA
+        
         if credito > 0:
             custo_real_pct = (custo_total_calc / credito) - 1
-            entrada_pct = entrada / credito
+            entrada_pct = entrada / credito # COLUNA NOVA PEDIDA
         else:
             custo_real_pct = 0
             entrada_pct = 0
@@ -118,8 +116,8 @@ def extrair_piffer_sanguesuga(texto_bruto):
             'Tipo': tipo_bem,
             'Crédito': credito,
             'Entrada': entrada,
-            '% Entrada': entrada_pct,     # NOVA COLUNA
-            'Custo Total': custo_total_calc, # NOVA COLUNA
+            '% Entrada': entrada_pct,     # COLUNA SOLICITADA
+            'Custo Total': custo_total_calc, # COLUNA SOLICITADA
             'Saldo Devedor': saldo_devedor_calc,
             'Parcela': parcela,
             'Custo Real (%)': custo_real_pct,
@@ -138,16 +136,15 @@ if texto_input:
     if not df.empty:
         df = df.sort_values(by=['Custo Real (%)'], ascending=True)
 
-        st.success(f"🔍 {len(df)} Oportunidades Encontradas - 001 JBS SNIPER")
+        st.success(f"🔍 {len(df)} Oportunidades - 001 JBS SNIPER")
 
-        # FORMATAÇÃO VISUAL NA TELA
         st.dataframe(
             df,
             column_config={
                 "Crédito": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Entrada": st.column_config.NumberColumn(format="R$ %.2f"),
-                "% Entrada": st.column_config.NumberColumn(format="%.2f %%"), # NOVA VISUALIZAÇÃO
-                "Custo Total": st.column_config.NumberColumn(format="R$ %.2f"), # NOVA VISUALIZAÇÃO
+                "% Entrada": st.column_config.NumberColumn(format="%.2f %%"),
+                "Custo Total": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Saldo Devedor": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Parcela": st.column_config.NumberColumn(format="R$ %.2f"),
                 "Custo Real (%)": st.column_config.NumberColumn(format="%.2f %%"),
@@ -157,7 +154,7 @@ if texto_input:
             use_container_width=True
         )
 
-        # --- BOTÃO DOWNLOAD EXCEL ---
+        # --- EXCEL ---
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='JBS_SNIPER')
@@ -174,23 +171,21 @@ if texto_input:
             for col_num, value in enumerate(df.columns.values):
                 worksheet.write(0, col_num, value, header_fmt)
 
-            # Ajuste de Colunas
+            # Ajuste Colunas
             worksheet.set_column('A:A', 25) # Status
             worksheet.set_column('B:C', 15) # Admin/Tipo
-            worksheet.set_column('D:E', 18, money_fmt) # Cred/Entrada
-            worksheet.set_column('F:F', 12, pct_fmt)   # % Entrada (NOVO)
-            worksheet.set_column('G:G', 18, money_fmt) # Custo Total (NOVO)
-            worksheet.set_column('H:H', 18, money_fmt) # Saldo Devedor
+            worksheet.set_column('D:E', 18, money_fmt) 
+            worksheet.set_column('F:F', 12, pct_fmt)   # % Entrada
+            worksheet.set_column('G:G', 18, money_fmt) # Custo Total
+            worksheet.set_column('H:H', 18, money_fmt) # Saldo
             worksheet.set_column('I:I', 15, money_fmt) # Parcela
             worksheet.set_column('J:J', 12, pct_fmt)   # Custo Real
-            worksheet.set_column('K:K', 10) # Prazo
 
         st.download_button(
-            label="📥 BAIXAR PLANILHA COMPLETA",
+            label="📥 BAIXAR EXCEL COMPLETO",
             data=buffer.getvalue(),
-            file_name=f"001_JBS_Sniper_{datetime.now().strftime('%d-%m')}.xlsx",
+            file_name=f"001_JBS_{datetime.now().strftime('%d-%m')}.xlsx",
             mime="application/vnd.ms-excel"
         )
-
     else:
         st.warning("Nenhuma cota identificada. Verifique o texto copiado.")
